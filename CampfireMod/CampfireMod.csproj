@@ -26,11 +26,8 @@
         <Content Include="CampfireMod.csproj.user"/>
     </ItemGroup>
     <ItemGroup>
-      <Reference Include="CheatsMod">
-        <HintPath>..\..\..\..\..\AppData\Roaming\OuterWildsModManager\OWML\Mods\PacificEngine.CheatsMod\CheatsMod.dll</HintPath>
-      </Reference>
       <Reference Include="QSB">
-        <HintPath>..\..\..\..\..\AppData\Roaming\OuterWildsModManager\OWML\Mods\Raicuparta.QuantumSpaceBuddies\QSB.dll</HintPath>
+        <HintPath>C:\Users\bella\AppData\Roaming\OuterWildsModManager\OWML\Mods\Raicuparta.QuantumSpaceBuddies\QSB.dll</HintPath>
       </Reference>
     </ItemGroup>
 </Project>
