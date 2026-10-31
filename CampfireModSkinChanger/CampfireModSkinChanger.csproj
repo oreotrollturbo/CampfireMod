@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+        <LangVersion>latest</LangVersion>
+        <Copyright>Copyright © 2026 ERROR</Copyright>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+        <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+        <NoWarn>MSB3270</NoWarn>
+        <DebugType>portable</DebugType>
+        <OutputPath>$(APPDATA)\OuterWildsModManager\OWML\Mods\oreotrollturbo.CampfireMod</OutputPath>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="OWML" Version="2.15.1"/>
+        <PackageReference Include="OuterWildsGameLibs" Version="1.1.15.1018"/>
+    </ItemGroup>
+    <ItemGroup>
+        <Content Include="CampfireModSkinChanger.csproj.user"/>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <ProjectReference Include="..\CampfireMod\CampfireMod.csproj" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <Reference Include="SkinChanger">
+            <HintPath>$(APPDATA)\OuterWildsModManager\OWML\Mods\pikpik_carrot.SkinChanger\SkinChanger.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="QSB">
+            <HintPath>$(APPDATA)\OuterWildsModManager\OWML\Mods\Raicuparta.QuantumSpaceBuddies\QSB.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+</Project>

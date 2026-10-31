@@ -27,7 +27,8 @@
     </ItemGroup>
     <ItemGroup>
       <Reference Include="QSB">
-        <HintPath>C:\Users\bella\AppData\Roaming\OuterWildsModManager\OWML\Mods\Raicuparta.QuantumSpaceBuddies\QSB.dll</HintPath>
+        <HintPath>$(APPDATA)\OuterWildsModManager\OWML\Mods\Raicuparta.QuantumSpaceBuddies\QSB.dll</HintPath>
+          <Private>false</Private>
       </Reference>
     </ItemGroup>
 </Project>
