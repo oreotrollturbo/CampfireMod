@@ -29,7 +29,7 @@ public class CampfireModSkinChanger : MonoBehaviour
     {
         Instance = this;
         campfireModInstance = CampfireMod.CampfireMod.Instance;
-        QsbAPI = campfireModInstance.QsbApi;
+        QsbAPI = CampfireMod.CampfireMod.QsbApi;
 
         new Harmony("oreotrollturbo.CampfireModSkinChanger")
             .PatchAll(Assembly.GetExecutingAssembly());

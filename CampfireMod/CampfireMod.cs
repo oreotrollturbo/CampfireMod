@@ -13,11 +13,18 @@ using static UnityEngine.Mathf;
 
 namespace CampfireMod;
 
+public static class Extensions
+{
+    public static T GetOrAddComponent<T>(this Transform t) where T : Component =>
+        t.GetComponent<T>() ?? t.gameObject.AddComponent<T>();
+}
+
 public class CampfireMod : ModBehaviour
 {
     public static CampfireMod Instance;
     
-    public IQSBAPI QsbApi;
+    public static IQSBAPI QsbApi;
+    public static GrabModule grabModule;
 
     private bool _isRagdolled;
 
@@ -40,6 +47,8 @@ public class CampfireMod : ModBehaviour
         }
         
         // ------------
+
+        grabModule = gameObject.AddComponent<GrabModule>();
 
         OnCompleteSceneLoad(OWScene.TitleScreen, OWScene.TitleScreen);
         LoadManager.OnCompleteSceneLoad += OnCompleteSceneLoad;
@@ -81,10 +90,10 @@ public class CampfireMod : ModBehaviour
     // BREAK MY SPINE
     public IEnumerator WaitForTittleScreen()
     {
-        var titleScreenPlanet = GameObject.Find("Scene/Background/PlanetPivot/PlanetRoot");
+        var titleScreenPlanet = GameObject.Find("Scene");
 
         GameObject campfirePrefab;
-        while ((campfirePrefab = titleScreenPlanet.transform.Find("Prefab_HEA_Campfire")?.gameObject) == null)
+        while ((campfirePrefab = titleScreenPlanet.GetComponentInChildren<Campfire>()?.transform?.parent?.gameObject) == null)
             yield return null;
 
         for (float y = 0; y < 90; y += 8f)
@@ -107,7 +116,16 @@ public class CampfireMod : ModBehaviour
             }
         }
     }
-    
+
+    public override void Configure(IModConfig config)
+    {
+        if (!config.GetSettingsValue<bool>("Allow Other Players To Grab"))
+        {
+            grabModule.currentGrabber.DetachPlayer();
+            grabModule.currentGrabber = null;
+        }
+    }
+
     // ----------------------------------------------------------------------
 
     private void RespawnPlayer(uint playerID) => new PlayerRespawnMessage(playerID).Send();
