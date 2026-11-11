@@ -1,37 +1,54 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections;
+using System.IO;
 using HarmonyLib;
 using OWML.Common;
 using OWML.ModHelper;
 using System.Reflection;
+using QSB.Messaging;
 using QSB.RespawnSync;
+using QSB.RespawnSync.Messages;
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.InputSystem.Controls;
+using static UnityEngine.Mathf;
 
 namespace CampfireMod;
+
+public static class Extensions
+{
+    public static T GetOrAddComponent<T>(this Transform t) where T : Component =>
+        t.GetComponent<T>() ?? t.gameObject.AddComponent<T>();
+}
 
 public class CampfireMod : ModBehaviour
 {
     public static CampfireMod Instance;
     
-    public RespawnManager RespawnManager;
-    private IQSBAPI QsbApi;
+    public static IQSBAPI QsbApi;
+    public static GrabModule grabModule;
 
     private bool _isRagdolled;
 
-    public void Awake()
-    {
-        Instance = this;
-    }
+    public void Awake() => Instance = this;
 
     public void Start()
     {
-        ModHelper.Console.WriteLine($"My mod {nameof(CampfireMod)} is loaded!", MessageType.Success);
+        ModHelper.Console.WriteLine("Let's gather 'round the campfire and sing our campfire song.", MessageType.Success);
 
         new Harmony("oreotrollturbo.CampfireMod").PatchAll(Assembly.GetExecutingAssembly());
         
+        // Dependencies
         QsbApi = ModHelper.Interaction.TryGetModApi<IQSBAPI>("Raicuparta.QuantumSpaceBuddies");
+
+        // Optional skin changer (should use this for RUMBLE mods)
+        if (ModHelper.Interaction.ModExists("pikpik_carrot.SkinChanger"))
+        {
+            var campfireSkinChanger = Assembly.LoadFrom(Path.Combine(ModHelper.Manifest.ModFolderPath, "CampfireModSkinChanger.dll"));
+            gameObject.AddComponent(campfireSkinChanger.GetType("CampfireModSkinChanger.CampfireModSkinChanger", true));
+        }
+        
+        // ------------
+
+        grabModule = gameObject.AddComponent<GrabModule>();
 
         OnCompleteSceneLoad(OWScene.TitleScreen, OWScene.TitleScreen);
         LoadManager.OnCompleteSceneLoad += OnCompleteSceneLoad;
@@ -39,15 +56,17 @@ public class CampfireMod : ModBehaviour
 
     public void Update()
     {
-        if (QsbApi == null || RespawnManager == null)
+        if (QsbApi == null || RespawnManager.Instance == null)
             return;
 
         if (!Keyboard.current.gKey.isPressed)
             return;
         
+        // Respawn oldest dead player
         if (Keyboard.current.rKey.wasPressedThisFrame && QsbApi.GetIsHost() && QsbApi.GetIsInMultiplayer())
-            RespawnManager.RespawnSomePlayer();
+            RespawnManager.Instance.RespawnSomePlayer();
 
+        // Ragdolling
         if (Keyboard.current.uKey.wasPressedThisFrame)
         {
             var controller = Locator.GetPlayerBody()?.transform.GetComponent<PlayerCharacterController>();
@@ -62,10 +81,52 @@ public class CampfireMod : ModBehaviour
 
     public void OnCompleteSceneLoad(OWScene previousScene, OWScene newScene)
     {
-        if (newScene != OWScene.SolarSystem) return;
-        RespawnManager = FindObjectOfType<RespawnManager>();
-        
-        
-        QsbApi.GetIsHost();
+        if (newScene != OWScene.TitleScreen) return;
+
+        StartCoroutine(WaitForTittleScreen());
     }
+
+    // I do not care enough to put them flush against the planet
+    // BREAK MY SPINE
+    public IEnumerator WaitForTittleScreen()
+    {
+        var titleScreenPlanet = GameObject.Find("Scene");
+
+        GameObject campfirePrefab;
+        while ((campfirePrefab = titleScreenPlanet.GetComponentInChildren<Campfire>()?.transform?.parent?.gameObject) == null)
+            yield return null;
+
+        for (float y = 0; y < 90; y += 8f)
+        {
+            float r = Sin(y * Deg2Rad);
+            int count = Max(1, RoundToInt(36 * r));
+
+            for (int i = 0; i < count; i++)
+            {
+                float x = i * 360f / count;
+                Quaternion rot = Quaternion.Euler(y, x, 0);
+                
+                GameObject campfire = Instantiate(campfirePrefab, titleScreenPlanet.transform);
+                campfire.transform.localPosition = rot * new Vector3(-9.6813f, -57.453f, -14.6575f);
+                campfire.transform.localRotation = rot * campfirePrefab.transform.localRotation;
+
+                yield return null;
+
+                campfire.GetComponentInChildren<Campfire>(true).SetState(Campfire.State.LIT, true);
+            }
+        }
+    }
+
+    public override void Configure(IModConfig config)
+    {
+        if (!config.GetSettingsValue<bool>("Allow Other Players To Grab"))
+        {
+            grabModule.currentGrabber.DetachPlayer();
+            grabModule.currentGrabber = null;
+        }
+    }
+
+    // ----------------------------------------------------------------------
+
+    private void RespawnPlayer(uint playerID) => new PlayerRespawnMessage(playerID).Send();
 }
