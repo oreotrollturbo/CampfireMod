@@ -74,7 +74,11 @@ public class CampfireModSkinChanger : MonoBehaviour
             if (Locator.GetDreamWorldController().IsInDream())
                 Locator.GetDreamWorldController().ExitDreamWorld(DreamWakeType.LanternBlownOut);
             else
+            {
                 Locator.GetDeathManager().KillPlayer(DeathType.Dream);
+                var controller = Locator.GetPlayerBody()?.transform.GetComponent<PlayerCharacterController>();
+                controller?.OnPlayerDeath(DeathType.Impact);
+            }
         }
     }
 

@@ -81,48 +81,23 @@ public class CampfireMod : ModBehaviour
 
     public void OnCompleteSceneLoad(OWScene previousScene, OWScene newScene)
     {
-        if (newScene != OWScene.TitleScreen) return;
-
-        StartCoroutine(WaitForTittleScreen());
-    }
-
-    // I do not care enough to put them flush against the planet
-    // BREAK MY SPINE
-    public IEnumerator WaitForTittleScreen()
-    {
-        var titleScreenPlanet = GameObject.Find("Scene");
-
-        GameObject campfirePrefab;
-        while ((campfirePrefab = titleScreenPlanet.GetComponentInChildren<Campfire>()?.transform?.parent?.gameObject) == null)
-            yield return null;
-
-        for (float y = 0; y < 90; y += 8f)
+        if (newScene == OWScene.SolarSystem)
         {
-            float r = Sin(y * Deg2Rad);
-            int count = Max(1, RoundToInt(36 * r));
+            grabModule.interactReceivers.Clear();
+            foreach (var id in QsbApi.GetPlayerIDs())
+                grabModule.OnPlayerJoin(id);
 
-            for (int i = 0; i < count; i++)
-            {
-                float x = i * 360f / count;
-                Quaternion rot = Quaternion.Euler(y, x, 0);
-                
-                GameObject campfire = Instantiate(campfirePrefab, titleScreenPlanet.transform);
-                campfire.transform.localPosition = rot * new Vector3(-9.6813f, -57.453f, -14.6575f);
-                campfire.transform.localRotation = rot * campfirePrefab.transform.localRotation;
-
-                yield return null;
-
-                campfire.GetComponentInChildren<Campfire>(true).SetState(Campfire.State.LIT, true);
-            }
+            GameObject.Find("TimberHearth_Body/Sector_TH/Sector_Village/Interactables_Village/LogLift").AddComponent<ElevatorFunny>();
         }
     }
 
     public override void Configure(IModConfig config)
     {
-        if (!config.GetSettingsValue<bool>("Allow Other Players To Grab"))
+        if (!config.GetSettingsValue<bool>("Allow Other Players To Grab") && PlayerState.IsAttached() && grabModule.currentGrabber != null)
         {
             grabModule.currentGrabber.DetachPlayer();
             grabModule.currentGrabber = null;
+            QsbApi.SendMessage(GrabModule.ResponseMessage, false, grabModule.currentGrabberID.Value);
         }
     }
 

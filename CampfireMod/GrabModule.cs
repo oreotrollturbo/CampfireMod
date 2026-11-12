@@ -1,13 +1,84 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using QSB.Player;
+using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace CampfireMod;
+
+public static class GrabCheck {
+    public static bool CanGrabPlayer(GameObject grabber, GameObject victim)
+    {
+        if (grabber == null || victim == null) return false;
+
+        Vector3 localDistance = grabber.transform
+            .InverseTransformPoint(victim.transform.position);
+
+        float horizontalDistance = new Vector2(
+            localDistance.x,
+            localDistance.z
+        ).magnitude;
+
+        float angle = Vector3.Angle(
+            Vector3.forward,
+            new Vector3(localDistance.x, 0f, localDistance.z)
+        );
+
+        bool validDistance = horizontalDistance < 4f;
+        bool validHeight = localDistance.y is > -2f and < 3f;
+        bool validAngle = angle < 20f;
+
+        bool result = validDistance && validHeight && validAngle;
+
+        return result;
+    }
+
+    public static GameObject GetClosestPlayer(GameObject grabber)
+    {
+        if (CampfireMod.QsbApi == null || grabber == null) return null;
+
+        GameObject closest = null;
+        float closestDistance = float.MaxValue;
+
+        foreach (var player in QSBPlayerManager.PlayerList)
+        {
+            var body = player.Body;
+
+            if (body == null)
+                continue;
+
+            if (body == grabber)
+                continue;
+
+            float distance = (
+                body.transform.position - grabber.transform.position
+            ).sqrMagnitude;
+
+            if (distance >= closestDistance)
+                continue;
+
+            closestDistance = distance;
+            closest = body;
+        }
+
+        return closest;
+    }
+}
 
 public class GrabModule : MonoBehaviour
 {
     public const string GrabMessage = "GrabPlayer";
     public const string ReleaseMessage = "ReleasePlayer";
     public const string ResponseMessage = "Response";
+
+    private readonly ScreenPrompt _releasePrompt = new(
+        InputLibrary.cancel,
+        "Release Player" + "   <CMD>"
+    );
+    
+    public List<InteractReceiver> interactReceivers = new();
 
     public PlayerAttachPoint currentGrabber;
     
@@ -21,17 +92,31 @@ public class GrabModule : MonoBehaviour
         CampfireMod.QsbApi.RegisterHandler<bool>(GrabMessage, OnPlayerGrab);
         CampfireMod.QsbApi.RegisterHandler<bool>(ReleaseMessage, OnPlayerRelease);
         CampfireMod.QsbApi.RegisterHandler<bool>(ResponseMessage, OnGrabResponse);
+        
+        Locator.GetPromptManager().AddScreenPrompt(_releasePrompt, PromptPosition.UpperRight);
+    }
+
+    public void OnDestroy()
+    {
+        Locator.GetPromptManager()?.RemoveScreenPrompt(_releasePrompt);
     }
 
     public void Update()
     {
-        var keyboard = Keyboard.current;
-        if (keyboard.rKey.wasPressedThisFrame && currentGrabbee.HasValue)
+        var canRelease = Keyboard.current.gKey.isPressed && currentGrabbee.HasValue;
+        _releasePrompt.SetVisibility(canRelease);
+
+        if (canRelease && OWInput.IsNewlyPressed(InputLibrary.cancel))
         {
-            CampfireMod.Instance.ModHelper.Console.WriteLine($"Releasing player {currentGrabbee.Value}");
             CampfireMod.QsbApi.SendMessage(ReleaseMessage, true, currentGrabbee.Value);
             currentGrabbee = null;
+            
+            foreach (var receiver in interactReceivers)
+                receiver.EnableInteraction();
         }
+        
+        if (Keyboard.current.gKey.isPressed && currentGrabbee.HasValue)
+            _releasePrompt.SetVisibility(true);
     }
     
     public PlayerAttachPoint GetOrAddAttachPoint(uint id)
@@ -44,7 +129,7 @@ public class GrabModule : MonoBehaviour
         go.transform.SetParent(hand.transform);
         var attachPoint = go.transform.GetOrAddComponent<PlayerAttachPoint>();
         attachPoint._attachOffset = new Vector3(-1f, -1.8f, 2f);
-        attachPoint.transform.localPosition = new Vector3(1.5841f, 0.0944f, 2.0707f);
+        attachPoint.transform.localPosition = new Vector3(1.5841f, -0.5944f, 2.0707f);
         attachPoint.transform.localRotation = Quaternion.Euler(343.6542f, 202.9634f, 62.4527f);
         
         CampfireMod.Instance.ModHelper.Console.WriteLine($"AttachPoint for {id}: {attachPoint}");
@@ -55,23 +140,41 @@ public class GrabModule : MonoBehaviour
     public void OnPlayerJoin(uint id)
     {
         CampfireMod.Instance.ModHelper.Console.WriteLine($"Player with id {id} joined.");
-        
-        var body = CampfireMod.QsbApi.GetPlayerBody(id);
-        if (body == null) return;
-        
-        CampfireMod.Instance.ModHelper.Console.WriteLine($"({id}) Body not null");
-        
-        var interactReceiver = body.AddComponent<InteractReceiver>();
-        var screenPrompt = new ScreenPrompt("<CMD> Grab Player");
-        screenPrompt._commandIdList = [InputConsts.InputCommandType.INTERACT];
-        interactReceiver._screenPrompt = screenPrompt;
-        interactReceiver.EnableInteraction();
-        
-        CampfireMod.Instance.ModHelper.Console.WriteLine($"({id}) Interact receiver added: {interactReceiver}");
+        StartCoroutine(WaitForPlayerBod(id));
+    }
+    
+    public IEnumerator WaitForPlayerBod(uint id)
+    {
+        CampfireMod.Instance.ModHelper.Console.WriteLine($"({id}) Waiting for player body...");
 
-        interactReceiver.OnPressInteract += () => GrabPlayer(id);
+        GameObject body;
+        while ((body = CampfireMod.QsbApi.GetPlayerBody(id)) == null)
+            yield return null;
         
+        CampfireMod.Instance.ModHelper.Console.WriteLine($"Found player body for ID {id} | Adding attach point & interaction volume.");
+
         GetOrAddAttachPoint(id);
+
+        GameObject grabObject = new GameObject("Grab Interaction Volume");
+        grabObject.transform.SetParent(body.transform, false);
+        grabObject.layer = LayerMask.NameToLayer("Interactible");
+        
+        var collider = grabObject.AddComponent<CapsuleCollider>();
+        collider.radius = 0.5f;
+        collider.height = 2f;
+        collider.center = Vector3.zero;
+        
+        var receiver = grabObject.AddComponent<InteractReceiver>();
+
+        receiver.SetInteractRange(1.5f);
+        receiver.ChangePrompt("Grab Player");
+        receiver.OnPressInteract += () => GrabPlayer(id);
+        receiver.EnableInteraction();
+
+        interactReceivers.Add(receiver);
+
+        // The attach point does not initialize until a frame later
+        yield return null;
     }
 
     public void GrabPlayer(uint player)
@@ -124,6 +227,9 @@ public class GrabModule : MonoBehaviour
         currentGrabber.DetachPlayer();
         currentGrabber = null;
         currentGrabberID = null;
+        
+        foreach (var receiver in interactReceivers)
+            receiver.EnableInteraction();
     }
 
     public void OnGrabResponse(uint grabbeeID, bool success)
@@ -131,11 +237,18 @@ public class GrabModule : MonoBehaviour
         if (!success)
         {
             CampfireMod.Instance.ModHelper.Console.WriteLine($"Player {grabbeeID} refused grab request");
+            
+            foreach (var receiver in interactReceivers)
+                receiver.EnableInteraction();
+            
             return;
         }
         
         currentGrabbee = grabbeeID;
         
         CampfireMod.Instance.ModHelper.Console.WriteLine($"Successfully grabbed player {grabbeeID}");
+        
+        foreach (var receiver in interactReceivers)
+            receiver.DisableInteraction();
     }
 }
