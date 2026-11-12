@@ -4,6 +4,7 @@ using HarmonyLib;
 using OWML.Common;
 using OWML.ModHelper;
 using System.Reflection;
+using QSB.Menus;
 using QSB.Messaging;
 using QSB.RespawnSync;
 using QSB.RespawnSync.Messages;

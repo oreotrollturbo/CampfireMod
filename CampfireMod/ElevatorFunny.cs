@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+﻿using System;
+using HarmonyLib;
+using QSB.Menus;
+using UnityEngine;
 
 namespace CampfireMod;
 
@@ -10,6 +13,30 @@ public class ElevatorFunny : MonoBehaviour
 
     private bool _wasMoving;
     private bool _returning;
+
+    private void OnEnable()
+    {
+        GlobalMessenger<DeathType>.AddListener("PlayerDeath", OnPlayerDeath);
+    }
+
+    private void OnDisable()
+    {
+        GlobalMessenger<DeathType>.RemoveListener("PlayerDeath", OnPlayerDeath);
+    }
+
+    private void OnPlayerDeath(DeathType type)
+    {
+        if (_wasMoving && type == DeathType.Energy && !PlayerData.GetPersistentCondition("CAMPFIRE_INITIATED"))
+        {
+            AccessTools.Method(typeof(MenuManager), "OpenInfoPopup", [typeof(string), typeof(string)])
+                .Invoke(MenuManager.Instance, [
+                    "Welcome to Campfire :3",
+                    "Oh..."
+                ]);
+            
+            PlayerData.SetPersistentCondition("CAMPFIRE_INITIATED", true);
+        }
+    }
 
     private void Start()
     {
